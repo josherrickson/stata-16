@@ -84,4 +84,18 @@ These aliases mimic [`pwd` and `cd`](https://www.stata.com/manuals/dcd.pdf), Sta
 
 ^#^^#^ Remember to drop frames!
 
+When you have data loaded into a frame, it is (like all data in Stata) loaded into your memory. That means if you open multiple very large data sets in frames, you can quickly run out of memory when you never had before.
+
+Frames can be dropped via `frame drop` as you might guess.
+
+~~~~
+<<dd_do>>
+frame dir
+frame drop seconddata
+frame dir
+<</dd_do>>
+~~~~
+
+While not a new command to Stata 16, the [`compress`](https://www.stata.com/manuals/dcompress.pdf) command can be very handy as it will attempt to shrink the size of the data as much as possible. This process is non-destructive, so there is no harm in running it.
+
 ^#^^#^ Linking data sets
