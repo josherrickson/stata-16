@@ -271,8 +271,6 @@ gen nonsense = frval(linkdiet, dr1tcalc)/frval(bp, bpxpls) + dmdhrage
 
 Note that this calculation used variables from all three frames. A less nonsensical example might be where we want the percent of a countries population located in a given state. Imagine we have the primary frame of county data, and then a separate frame "state" containing state level information.
 
-~~~~
-<<dd_do>>
+```
 gen percentpopulation = population/frval(state, population)
-<</dd_do>>
-~~~~
+```
