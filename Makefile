@@ -22,12 +22,9 @@ _book/index.html: index.Rmd $(Stata_Rmd)
 	@$(eval TMPPATH := $(shell find stata_markdown -name "*.Rmd"))
 	@$(eval TMP := $(shell find stata_markdown -name "*.Rmd" | sed 's.stata_markdown/..'))
 	@cp $(TMPPATH) .
-# All images get copied too
-	@if [ $(shell find stata_markdown -name "*.svg" | wc -l) -gt 0 ]; then cp stata_markdown/*.svg .; fi
 	@Rscript -e "bookdown::render_book('$<', 'bookdown::gitbook')"
 #	Remove any files copies up
 	@rm -rf $(TMP)
-	@rm -rf *.svg
 
 default: $(Stata_Rmd)  _book/index.html
 
@@ -38,5 +35,5 @@ open:
 	@open _book/index.html
 
 publish:
-	@mkdir ~/repositories/josherrickson.github.io/stata-regression
-	@cp -r _book/* ~/repositories/josherrickson.github.io/stata-regression/.
+	@mkdir ~/repositories/josherrickson.github.io/stata-16
+	@cp -r _book/* ~/repositories/josherrickson.github.io/stata-16/.
