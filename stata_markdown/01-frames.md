@@ -1,19 +1,19 @@
 ^#^ Frames
 
-Prior to Stata 16, one infamous unique aspect of Stata was support for only one data set at a time. If you wanted to work with multiple data-sets, you either needed to [`merge`](https://www.stata.com/manuals/dmerge.pdf) or [`append`g](https://www.stata.com/manuals/dappend.pdf) the data sets together if there was a natural connection between them, or be frequently opening and closing data or using [`preserve` and `restore`](https://www.stata.com/manuals/ppreserve.pdf) to jump between them.
+Prior to Stata 16, one infamous unique aspect of Stata was support for only one data set at a time. If you wanted to work with multiple data-sets, you either needed to [`merge`](https://www.stata.com/manuals/dmerge.pdf) or [`append`](https://www.stata.com/manuals/dappend.pdf) the data sets together if there was a natural connection between them, or be frequently opening and closing data or using [`preserve` and `restore`](https://www.stata.com/manuals/ppreserve.pdf) to jump between them.
 
 Frames are Stata's approach to handling multiple data sets. You can now have multiple frames, each with their own data, which you can move between with ease, and even transfer variables between.
 
 ^#^^#^ When might you use frames?
 
-- Interruptions.
-- Destructive data manipulations.
-- Linked data sets (at same or different levels).
-- Collate model results.
+- Interruptions - You're working on a project, and someone asks you to do something on another data set. You can open the other data set in a new frame, do whatever is needed, then swap back to your current project without any loss.
+- Destructive data manipulations - If you need to do something destructive, you can copy your current data to a new frame and do the destructive operations there.
+- Linked data sets - When you have data that is linked, rather than merging, you can link the two frames together. (Either at the same level - e.g. pre & post survey for individuals; or at different levels - e.g. a person data set and a city data set.)
+- Collate model results - When using [`svmat`](https://www.stata.com/manuals/pmatrixmkmat.pdf) after running a model to place the model results in the data, place those results in a new frame instead.
 
 ^#^^#^ The basics
 
-The primary command for dealing with frames is, unsurprisingly, `frames` (or `frame`, either works). By itself, it will remind you of the current frame:
+The primary command for dealing with frames is, unsurprisingly, `frame` (or `frames`, either works). By itself, it will remind you of the current frame:
 
 ~~~~
 <<dd_do>>
@@ -208,7 +208,7 @@ frlink 1:1 seqn, frame(diet)
 <</dd_do>>
 ~~~~
 
-The `1:1` subcommand specifies that it is a 1-to-1 link - each person has no more than 1 row of data in each file. An alternative is `m:1` which allows multiple rows in the main file to be linked to a single row in the second frame. The alternative, `1:m`, is *not allowed* at this point in time.
+The `1:1` subcommand specifies that it is a 1-to-1 link - each person has no more than 1 row of data in each file. An alternative is `m:1` which allows multiple rows in the main file to be linked to a single row in the second frame. `1:m` is *not allowed* at this point in time.
 
 These commands created two new variables `bp` and `diet` (the same new as the linked frames) which indicate which row of the linked from is connected with the given row.
 
@@ -253,9 +253,9 @@ The `frget` command can copy variables from the linked frame into the primary fr
 
 ~~~~
 <<dd_do>>
-describe bpxchr
+summarize bpxchr
 frget bpxchr, from(bp)
-describe bpxchr
+summarize bpxchr
 <</dd_do>>
 ~~~~
 
