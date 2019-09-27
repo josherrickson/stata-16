@@ -73,6 +73,17 @@ frame dir
 
 Now we can see what size the data is in each frame. The description next to each frame is set via [`label data`](https://www.stata.com/manuals/dlabel.pdf), a previously not very useful trait that takes on new important in keeping track of which data is loaded in which frame.
 
+~~~~
+<<dd_do>>
+label data "blood-pressure data"
+frame dir
+<</dd_do>>
+~~~~
+
+We see that the output of `frame dir` is changed. Note that most data sets which are not provided by Stata will likely not have a data label, so you can add one as desired.
+
+Note also that `frame dir` will track which frames have data that needs to be saved.
+
 ^#^^#^ Aliases
 
 There are two aliases to keep track of.
@@ -97,6 +108,14 @@ frame dir
 ~~~~
 
 While not a new command to Stata 16, the [`compress`](https://www.stata.com/manuals/dcompress.pdf) command can be very handy as it will attempt to shrink the size of the data as much as possible. This process is non-destructive, so there is no harm in running it.
+
+You cannot drop the frame you are currently in.
+
+~~~~
+<<dd_do>>
+frame drop mainframe
+<</dd_do>>
+~~~~
 
 To drop all frames and their data, and reset Stata to a single "default" frame,
 
@@ -228,6 +247,14 @@ frlink describe diet
 <</dd_do>>
 ~~~~
 
+We can see all links from the current frame via `frlink dir`:
+
+~~~~
+<<dd_do>>
+frlink dir
+<</dd_do>>
+~~~~
+
 To unlink frames, simply drop the variable.
 
 ~~~~
@@ -241,7 +268,7 @@ Finally, the names of the created variables can be modified via the `generate` o
 ~~~~
 <<dd_do>>
 frlink 1:1 seqn, frame(diet) generate(linkdiet)
-frlink describe linkdiet
+frlink dir
 <</dd_do>>
 ~~~~
 
