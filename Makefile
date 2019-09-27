@@ -35,5 +35,5 @@ open:
 	@open _book/index.html
 
 publish:
-	@mkdir ~/repositories/josherrickson.github.io/stata-16
+	@mkdir -p ~/repositories/josherrickson.github.io/stata-16
 	@cp -r _book/* ~/repositories/josherrickson.github.io/stata-16/.
