@@ -1,0 +1,834 @@
+# Variable Lists
+
+A common technique in previous versions of Stata was to define a global
+containing a list of variables to be used later in the document. For example,
+you might see something like this at the top of a Do file:
+
+```stata
+global predictors x1 x2 x3 x4
+```
+
+then further down the document something like
+
+```stata
+regress y $predictors
+logit z $predictors
+```
+
+In Stata 16, Stata has formalized this concept with the addition of the `vl`
+command (**v**ariable **l**ist). It works similarly to the use of globals: lists
+of variables are defined, then later reference via the `$name` syntax. However,
+using `vl` has the benefits of improved organization, customizations unique to
+variable lists, error checking, and overall convenience.
+
+## Initialization of Variable Lists
+
+To begin using variable lists, `vl set` must be run.
+
+````stata
+. sysuse auto
+(1978 automobile data)
+
+. vl set
+
+-------------------------------------------------------------------------------
+                  |                      Macro's contents
+                  |------------------------------------------------------------
+Macro             |  # Vars   Description
+------------------+------------------------------------------------------------
+System            |
+  $vlcategorical  |       2   categorical variables
+  $vlcontinuous   |       2   continuous variables
+  $vluncertain    |       7   perhaps continuous, perhaps categorical variables
+  $vlother        |       0   all missing or constant variables
+-------------------------------------------------------------------------------
+Notes
+
+      1. Review contents of vlcategorical and vlcontinuous to ensure they are
+         correct.  Type vl list vlcategorical and type vl list vlcontinuous.
+
+      2. If there are any variables in vluncertain, you can reallocate them
+         to vlcategorical, vlcontinuous, or vlother.  Type
+         vl list vluncertain.
+
+      3. Use vl move to move variables among classifications.  For example,
+         type vl move (x50 x80) vlcontinuous to move variables x50 and x80 to
+         the continuous classification.
+
+      4. vlnames are global macros.  Type the vlname without the leading
+         dollar sign ($) when using vl commands.  Example: vlcategorical not
+         $vlcategorical.  Type the dollar sign with other Stata commands to
+         get a varlist.
+
+````
+
+This produces a surprisingly large amount of output. When you initialize the use
+of variable lists, Stata will automatically create four variable lists, called
+the "System variable lists". Every *numeric* variable in the current data set is
+automatically placed into one of these four lists:
+
+- `vlcategorical`: Variables which Stata thinks are categorical. These generally
+  have to be non-negative, integer valued variables with less than 10 unique
+  values.
+- `vlcontinuous`: Variables which Stata thinks are continuous. These generally
+  are variables which have negative values, have non-integer values, or are
+  non-negative integers with more than 100 unique values.
+- `vluncertain`: Variables which Stata is unsure whether they are continuous or
+  categorical. These generally are non-negative integer valued variables with
+  between 10 and 100 unique values.
+- `vlother`: Any numeric variables that aren't really useful - either all
+  missing or constant variables.
+
+There is a potential fifth system variable list, `vldummy`, which is created
+when option `dummy` is passed. Unsurprisingly, this will take variables
+containing only values 0 and 1 out of `vlcategorical` and into this list.
+
+The "Notes" given below the output are generic; they appear regardless of how
+well Stata was able to categorize the variables. They can be suppressed with the
+`nonotes` option to `vl set`.
+
+The two thresholds given above, 10 and 100, can be adjusted by the `categorical`
+and `uncertain` options. For example,
+
+```stata
+vl set, categorical(20) uncertain(50)
+```
+
+Running `vl set` on an already `vl`-set data set will result in an error, unless
+the `clear` option is given, which will re-generate the lists.
+
+````stata
+. vl set, dummy nonotes
+one or more already classified variables specified
+    You requested that variables be added to vl's system classifications, but
+    you specified 11 variables that were already classified.
+r(110);
+
+. vl set, dummy nonotes clear
+
+-------------------------------------------------------------------------------
+                  |                      Macro's contents
+                  |------------------------------------------------------------
+Macro             |  # Vars   Description
+------------------+------------------------------------------------------------
+System            |
+  $vldummy        |       1   0/1 variable
+  $vlcategorical  |       1   categorical variable
+  $vlcontinuous   |       2   continuous variables
+  $vluncertain    |       7   perhaps continuous, perhaps categorical variables
+  $vlother        |       0   all missing or constant variables
+-------------------------------------------------------------------------------
+
+````
+
+In the above, we changed our minds and wanted to include the `vldummy` list, but
+since we'd already `vl`-set, we had the `clear` the existing set.
+
+## Viewing lists
+
+When initializing the variable lists, we're treated to a nice table of all
+defined lists. We can replay it via
+
+````stata
+. vl dir
+
+-------------------------------------------------------------------------------
+                  |                      Macro's contents
+                  |------------------------------------------------------------
+Macro             |  # Vars   Description
+------------------+------------------------------------------------------------
+System            |
+  $vldummy        |       1   0/1 variable
+  $vlcategorical  |       1   categorical variable
+  $vlcontinuous   |       2   continuous variables
+  $vluncertain    |       7   perhaps continuous, perhaps categorical variables
+  $vlother        |       0   all missing or constant variables
+-------------------------------------------------------------------------------
+
+````
+
+To see the actual contents of the variable lists, we'll need to use `vl list`.
+
+````stata
+. vl list
+
+----------------------------------------------------
+    Variable | Macro           Values         Levels
+-------------+--------------------------------------
+     foreign | $vldummy        0 and 1             2
+       rep78 | $vlcategorical  integers >=0        5
+    headroom | $vlcontinuous   noninteger           
+  gear_ratio | $vlcontinuous   noninteger           
+       price | $vluncertain    integers >=0       74
+         mpg | $vluncertain    integers >=0       21
+       trunk | $vluncertain    integers >=0       18
+      weight | $vluncertain    integers >=0       64
+      length | $vluncertain    integers >=0       47
+        turn | $vluncertain    integers >=0       18
+displacement | $vluncertain    integers >=0       31
+----------------------------------------------------
+
+````
+
+This output produces one row for each variable *in each variable list it is in*.
+We haven't used this yet, but variables can be in multiple lists.
+
+We can list only specific lists:
+
+````stata
+. vl list vlcategorical
+
+------------------------------------------------
+Variable | Macro           Values         Levels
+---------+--------------------------------------
+   rep78 | $vlcategorical  integers >=0        5
+------------------------------------------------
+
+````
+
+or specific variables
+
+````stata
+. vl list (turn weight)
+
+------------------------------------------------
+Variable | Macro           Values         Levels
+---------+--------------------------------------
+    turn | $vluncertain    integers >=0       18
+  weight | $vluncertain    integers >=0       64
+------------------------------------------------
+
+````
+
+If "turn" was in multiple variable lists, each would appear as a row in this
+output.
+
+There's a bit of odd notation which can be used to sort the output by variable
+name, which makes it easier to identify variables which appear in multiple
+lists.
+
+````stata
+. vl list (_all), sort
+
+----------------------------------------------------
+    Variable | Macro           Values         Levels
+-------------+--------------------------------------
+displacement | $vluncertain    integers >=0       31
+     foreign | $vldummy        0 and 1             2
+  gear_ratio | $vlcontinuous   noninteger           
+    headroom | $vlcontinuous   noninteger           
+      length | $vluncertain    integers >=0       47
+         mpg | $vluncertain    integers >=0       21
+       price | $vluncertain    integers >=0       74
+       rep78 | $vlcategorical  integers >=0        5
+       trunk | $vluncertain    integers >=0       18
+        turn | $vluncertain    integers >=0       18
+      weight | $vluncertain    integers >=0       64
+----------------------------------------------------
+
+````
+
+The `(_all)` tells Stata to report on all variables, and sorting (when you
+specify at least one variable) orders by variable name rather than variable list
+name.
+
+This will also list any numeric variables which are not found in **any** list.
+
+### Moving variables in system lists
+
+After initializing the variable lists, if you plan on using the system lists,
+you may need to move variables around (e.g. classifying the `vluncertain`
+variables into their proper lists). This can be done via `vl move` which has the
+syntax
+
+```stata
+vl move (<variables to move>) <destination list>
+```
+
+For example, all the variables in `vluncertain` are actually continuous:
+
+````stata
+. vl list vluncertain
+
+----------------------------------------------------
+    Variable | Macro           Values         Levels
+-------------+--------------------------------------
+       price | $vluncertain    integers >=0       74
+         mpg | $vluncertain    integers >=0       21
+       trunk | $vluncertain    integers >=0       18
+      weight | $vluncertain    integers >=0       64
+      length | $vluncertain    integers >=0       47
+        turn | $vluncertain    integers >=0       18
+displacement | $vluncertain    integers >=0       31
+----------------------------------------------------
+
+. vl move (price mpg trunk weight length turn displacement) vlcontinuous
+note: 7 variables specified and 7 variables moved.
+
+------------------------------
+Macro          # Added/Removed
+------------------------------
+$vldummy                     0
+$vlcategorical               0
+$vlcontinuous                7
+$vluncertain                -7
+$vlother                     0
+------------------------------
+
+. vl dir
+
+-------------------------------------------------------------------------------
+                  |                      Macro's contents
+                  |------------------------------------------------------------
+Macro             |  # Vars   Description
+------------------+------------------------------------------------------------
+System            |
+  $vldummy        |       1   0/1 variable
+  $vlcategorical  |       1   categorical variable
+  $vlcontinuous   |       9   continuous variables
+  $vluncertain    |       0   perhaps continuous, perhaps categorical variables
+  $vlother        |       0   all missing or constant variables
+-------------------------------------------------------------------------------
+
+````
+
+Alternatively, since we're moving all variables in `vluncertain`, we can see our
+first use of the variable list!
+
+````stata
+. vl set, dummy nonotes clear
+
+-------------------------------------------------------------------------------
+                  |                      Macro's contents
+                  |------------------------------------------------------------
+Macro             |  # Vars   Description
+------------------+------------------------------------------------------------
+System            |
+  $vldummy        |       1   0/1 variable
+  $vlcategorical  |       1   categorical variable
+  $vlcontinuous   |       2   continuous variables
+  $vluncertain    |       7   perhaps continuous, perhaps categorical variables
+  $vlother        |       0   all missing or constant variables
+-------------------------------------------------------------------------------
+
+. vl move ($vluncertain) vlcontinuous
+note: 7 variables specified and 7 variables moved.
+
+------------------------------
+Macro          # Added/Removed
+------------------------------
+$vldummy                     0
+$vlcategorical               0
+$vlcontinuous                7
+$vluncertain                -7
+$vlother                     0
+------------------------------
+
+````
+
+Note that variable lists are essentially just global macros so can be referred
+to via `\$name`. Note, however, that the `\$` is only used when we want to
+actually use the variable list as a macro - in this case, we wanted to expand
+`vluncertain` into it's list of variables. When we're referring to a variable
+list in the `vl` commands, we *do not* use the `\$`.
+
+## User Variable Lists
+
+In addition to the System variable lists, you can define your own User variables
+lists, which I imagine will be used far more often. These are easy to create
+with `vl create`:
+
+````stata
+. vl create mylist1 = (weight mpg)
+note: $mylist1 initialized with 2 variables.
+
+. vl create mylist2 = (weight length trunk)
+note: $mylist2 initialized with 3 variables.
+
+. vl dir, user
+
+-------------------------------------------------------------------------------
+                  |                      Macro's contents
+                  |------------------------------------------------------------
+Macro             |  # Vars   Description
+------------------+------------------------------------------------------------
+User              |
+  $mylist1        |       2   variables
+  $mylist2        |       3   variables
+-------------------------------------------------------------------------------
+
+. vl list, user
+
+------------------------------------------------
+Variable | Macro           Values         Levels
+---------+--------------------------------------
+  weight | $mylist1        integers >=0       64
+     mpg | $mylist1        integers >=0       21
+  weight | $mylist2        integers >=0       64
+  length | $mylist2        integers >=0       47
+   trunk | $mylist2        integers >=0       18
+------------------------------------------------
+
+````
+
+Note the addition of the `user` option to `vl list` and `vl dir` to show only
+User variable lists and suppress the System variable lists. We can also
+demonstrate the odd sorting syntax here:
+
+````stata
+. vl list (_all), sort user
+
+----------------------------------------------------
+    Variable | Macro           Values         Levels
+-------------+--------------------------------------
+displacement | not in vluser                      31
+     foreign | not in vluser                       2
+  gear_ratio | not in vluser                        
+    headroom | not in vluser                        
+      length | $mylist2        integers >=0       47
+         mpg | $mylist1        integers >=0       21
+       price | not in vluser                      74
+       rep78 | not in vluser                       5
+       trunk | $mylist2        integers >=0       18
+        turn | not in vluser                      18
+      weight | $mylist1        integers >=0       64
+      weight | $mylist2        integers >=0       64
+----------------------------------------------------
+
+````
+
+You can refer to variable lists in all the usual shortcut ways:
+
+```stata
+vl create mylist = (x1-x100 z*)
+```
+
+We can add labels to variable lists:
+
+````stata
+. vl label mylist1 "Related to gas consumption"
+
+. vl label mylist2 "Related to size"
+
+. vl dir, user
+
+-------------------------------------------------------------------------------
+                  |                      Macro's contents
+                  |------------------------------------------------------------
+Macro             |  # Vars   Description
+------------------+------------------------------------------------------------
+User              |
+  $mylist1        |       2   Related to gas consumption
+  $mylist2        |       3   Related to size
+-------------------------------------------------------------------------------
+
+````
+
+### Modifying User Variable Lists
+
+First, note that with User Variable Lists, the `vl move` command **does not
+work**. It only works with system variable lists.
+
+We can create new user variable lists which build off old lists with `vl
+create`. To add a new variable:
+
+````stata
+. vl create mylist3 = mylist2 + (gear_ratio)
+note: $mylist3 initialized with 4 variables.
+
+. vl list, user
+
+--------------------------------------------------
+  Variable | Macro           Values         Levels
+-----------+--------------------------------------
+    weight | $mylist1        integers >=0       64
+       mpg | $mylist1        integers >=0       21
+    weight | $mylist2        integers >=0       64
+    length | $mylist2        integers >=0       47
+     trunk | $mylist2        integers >=0       18
+    weight | $mylist3        integers >=0       64
+    length | $mylist3        integers >=0       47
+     trunk | $mylist3        integers >=0       18
+gear_ratio | $mylist3        noninteger           
+--------------------------------------------------
+
+. vl create mylist4 = mylist2 - (turn)
+note: $mylist4 initialized with 3 variables.
+
+. vl list, user
+
+--------------------------------------------------
+  Variable | Macro           Values         Levels
+-----------+--------------------------------------
+    weight | $mylist1        integers >=0       64
+       mpg | $mylist1        integers >=0       21
+    weight | $mylist2        integers >=0       64
+    length | $mylist2        integers >=0       47
+     trunk | $mylist2        integers >=0       18
+    weight | $mylist3        integers >=0       64
+    length | $mylist3        integers >=0       47
+     trunk | $mylist3        integers >=0       18
+gear_ratio | $mylist3        noninteger           
+    weight | $mylist4        integers >=0       64
+    length | $mylist4        integers >=0       47
+     trunk | $mylist4        integers >=0       18
+--------------------------------------------------
+
+````
+
+Instead of adding (or removing) single variables at a time, we can instead add
+or remove lists. Keeping with the comment above, you do *not* use `\$` here to
+refer to the list.
+
+````stata
+. vl create mylist5 = mylist2 - mylist1
+note: $mylist5 initialized with 2 variables.
+
+. vl list mylist5
+
+------------------------------------------------
+Variable | Macro           Values         Levels
+---------+--------------------------------------
+  length | $mylist5        integers >=0       47
+   trunk | $mylist5        integers >=0       18
+------------------------------------------------
+
+````
+
+However, if we want to simply modify an existing list, a better approach would
+be the `vl modify` command. `vl create` and `vl modify` are similar to
+`generate` and `replace`; the former creates a new variable list while the later
+changes an existing variable list, but the syntax right of the `=` is the same.
+
+````stata
+. vl modify mylist3 = mylist3 + (headroom)
+note: 1 variable added to $mylist3.
+
+. vl modify mylist3 = mylist3 - (weight)
+note: 1 variable removed from $mylist3.
+
+````
+
+## Dropping variable list
+
+Variable lists can be dropped via `vl drop`
+
+````stata
+. vl dir, user
+
+-------------------------------------------------------------------------------
+                  |                      Macro's contents
+                  |------------------------------------------------------------
+Macro             |  # Vars   Description
+------------------+------------------------------------------------------------
+User              |
+  $mylist1        |       2   Related to gas consumption
+  $mylist2        |       3   Related to size
+  $mylist3        |       4   variables
+  $mylist4        |       3   variables
+  $mylist5        |       2   variables
+-------------------------------------------------------------------------------
+
+. vl drop mylist4 mylist5
+
+. vl dir, user
+
+-------------------------------------------------------------------------------
+                  |                      Macro's contents
+                  |------------------------------------------------------------
+Macro             |  # Vars   Description
+------------------+------------------------------------------------------------
+User              |
+  $mylist1        |       2   Related to gas consumption
+  $mylist2        |       3   Related to size
+  $mylist3        |       4   variables
+-------------------------------------------------------------------------------
+
+````
+
+System lists cannot be dropped; if you run `vl drop vlcontinuous` it just
+removes all the variables from it.
+
+## Using Variable Lists
+
+To be explicit, we can use variable lists in any command which would take the
+variables in that list. For example,
+
+````stata
+. describe $mylist3
+
+Variable      Storage   Display    Value
+    name         type    format    label      Variable label
+-------------------------------------------------------------------------------
+length          int     %8.0g                 Length (in.)
+trunk           int     %8.0g                 Trunk space (cu. ft.)
+gear_ratio      float   %6.2f                 Gear ratio
+headroom        float   %6.1f                 Headroom (in.)
+
+. describe $vlcategorical
+
+Variable      Storage   Display    Value
+    name         type    format    label      Variable label
+-------------------------------------------------------------------------------
+rep78           int     %8.0g                 Repair record 1978
+
+````
+
+We can also use them in a modeling setting.
+
+````stata
+. regress mpg $mylist3
+
+      Source |       SS           df       MS      Number of obs   =        74
+-------------+----------------------------------   F(4, 69)        =     30.77
+       Model |  1565.65298         4  391.413244   Prob > F        =    0.0000
+    Residual |  877.806484        69  12.7218331   R-squared       =    0.6408
+-------------+----------------------------------   Adj R-squared   =    0.6199
+       Total |  2443.45946        73  33.4720474   Root MSE        =    3.5668
+
+------------------------------------------------------------------------------
+         mpg | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+      length |  -.1837962   .0327629    -5.61   0.000    -.2491564   -.1184361
+       trunk |  -.0103867   .1627025    -0.06   0.949    -.3349693    .3141959
+  gear_ratio |   1.526952    1.27546     1.20   0.235    -1.017521    4.071426
+    headroom |   .0136375   .6602514     0.02   0.984    -1.303528    1.330803
+       _cons |   51.33708   8.300888     6.18   0.000     34.77727     67.8969
+------------------------------------------------------------------------------
+
+````
+
+However, we'll run into an issue here - how to specify categorical variables or
+interactions? The `vl substitute` command creates "factor-variable lists" that
+can include factor variable indicators (`i.`), continuous variable indicators
+(`c.`), and interactions (`#` or `##`). (The name "factor-variable list" is
+slightly disingenuous; you could create a "factor-variable list" that includes
+no actual factors, for example, if you wanted to interact two continuous
+variables.)
+
+Creating a factor-varible list via `vl substitute` can be done by specifying
+variables or variable lists.
+
+````stata
+. vl substitute sublist1 = mpg mylist3
+
+. display "$sublist1"
+mpg length trunk gear_ratio headroom
+
+. vl dir
+
+-------------------------------------------------------------------------------
+                  |                      Macro's contents
+                  |------------------------------------------------------------
+Macro             |  # Vars   Description
+------------------+------------------------------------------------------------
+System            |
+  $vldummy        |       1   0/1 variable
+  $vlcategorical  |       1   categorical variable
+  $vlcontinuous   |       9   continuous variables
+  $vluncertain    |       0   perhaps continuous, perhaps categorical variables
+  $vlother        |       0   all missing or constant variables
+User              |
+  $mylist1        |       2   Related to gas consumption
+  $mylist2        |       3   Related to size
+  $mylist3        |       4   variables
+  $sublist1       |           factor-variable list
+-------------------------------------------------------------------------------
+
+````
+
+Note the use of `display "\$listname"` instead of `vl list`. Factor-variable
+lists are not just lists of vairables, they also can include the features above,
+so must be displayed. Note that in the `vl dir`, "sublist1" has no number of
+variables listed, making it stand apart.
+
+We can make this more interesting by actually including continuous/factor
+indicatores and/or interactions.
+
+````stata
+. vl substitute sublist2 = c.mylist1##i.vldummy
+
+. display "$sublist2"
+weight mpg i.foreign i.foreign#c.weight i.foreign#c.mpg
+
+````
+
+Note the need to specify that mylist1 is continuous (with `c.`). It follows the
+normal convention that Stata assumes predictors in a model are continuous by
+default, unless they're invloved in an interaction, in which case it assumes
+they are factors by default.
+
+````stata
+. regress price $sublist2
+
+      Source |       SS           df       MS      Number of obs   =        74
+-------------+----------------------------------   F(5, 68)        =     16.82
+       Model |   351163805         5  70232760.9   Prob > F        =    0.0000
+    Residual |   283901591        68   4175023.4   R-squared       =    0.5530
+-------------+----------------------------------   Adj R-squared   =    0.5201
+       Total |   635065396        73  8699525.97   Root MSE        =    2043.3
+
+------------------------------------------------------------------------------
+       price | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+      weight |   4.415037   .8529259     5.18   0.000      2.71305    6.117024
+         mpg |    237.691   125.0383     1.90   0.062    -11.81907     487.201
+             |
+     foreign |
+    Foreign  |   8219.603   7265.713     1.13   0.262    -6278.902    22718.11
+             |
+     foreign#|
+    c.weight |
+    Foreign  |   .7408054   1.647504     0.45   0.654    -2.546738    4.028348
+             |
+     foreign#|
+       c.mpg |
+    Foreign  |  -257.4683    155.426    -1.66   0.102     -567.616    52.67938
+             |
+       _cons |  -13285.44   5149.648    -2.58   0.012    -23561.41   -3009.481
+------------------------------------------------------------------------------
+
+````
+
+### Updating factor-variable Lists
+
+Factor-variable lists cannot be directly modified.
+
+````stata
+. display "$sublist1"
+mpg length trunk gear_ratio headroom
+
+. vl modify sublist1 = sublist1 - mpg
+sublist1 not allowed
+    vlusernames containing factor variables not allowed in this context
+    r(198);
+
+````
+
+However, if you create a factor-variable list using only other variable lists,
+if those lists get updated, so does the factor-variable list!
+
+````stata
+. vl create continuous = (turn trunk)
+note: $continuous initialized with 2 variables.
+
+. vl create categorical = (rep78 foreign)
+note: $categorical initialized with 2 variables.
+
+. vl substitute predictors = c.continuous##i.categorical
+
+. display "$predictors"
+turn trunk i.rep78 i.foreign i.rep78#c.turn i.foreign#c.turn i.rep78#c.trunk i.
+> foreign#c.trunk
+
+. vl modify continuous = continuous - (trunk)
+note: 1 variable removed from $continuous.
+
+. quiet vl rebuild
+
+. display "$predictors"
+turn i.rep78 i.foreign i.rep78#c.turn i.foreign#c.turn
+
+````
+
+Note the call to `vl rebuild`. Among other things, it will re-generate the
+factor-variable lists. (It produces a `vl dir` output without an option to
+suppress it, hence the use of
+[`quiet`](https://www.stata.com/manuals/pquietly.pdf).)
+
+## Stored Statistics
+
+You may have noticed that certain characteristics of the variable are reported.
+
+````stata
+. vl list mylist3
+
+--------------------------------------------------
+  Variable | Macro           Values         Levels
+-----------+--------------------------------------
+  headroom | $mylist3        noninteger           
+     trunk | $mylist3        integers >=0       18
+    length | $mylist3        integers >=0       47
+gear_ratio | $mylist3        noninteger           
+--------------------------------------------------
+
+````
+
+This reports some characteristics of the variables (integer, whether it's
+non-negative) and the number of unique values. We can also see some other
+statistics:
+
+````stata
+. vl list mylist3, min max obs
+
+-------------------------------------------------------------------------------
+Variable | Macro           Values         Levels       Min       Max        Obs
+---------+---------------------------------------------------------------------
+headroom | $mylist3        noninteger                  1.5         5         74
+   trunk | $mylist3        integers >=0       18         5        23         74
+  length | $mylist3        integers >=0       47       142       233         74
+gear_r~o | $mylist3        noninteger                 2.19      3.89         74
+-------------------------------------------------------------------------------
+
+````
+
+This is similar to [`codebook`](https://www.stata.com/manuals/dcodebook.pdf)
+except faster; these characteristics are saved at the time the variable list is
+created or modified and not updated automatically. If the data changes, this
+does *not* get updated.
+
+````stata
+. drop if weight < 3000
+(35 observations deleted)
+
+. summarize weight
+
+    Variable |        Obs        Mean    Std. dev.       Min        Max
+-------------+---------------------------------------------------------
+      weight |         39    3653.846    423.5788       3170       4840
+
+. vl list (weight), min max obs
+
+-------------------------------------------------------------------------------
+Variable | Macro           Values         Levels       Min       Max        Obs
+---------+---------------------------------------------------------------------
+  weight | $vlcontinuous   integers >=0       64      1760      4840         74
+  weight | $mylist1        integers >=0       64      1760      4840         74
+  weight | $mylist2        integers >=0       64      1760      4840         74
+-------------------------------------------------------------------------------
+
+````
+
+To re-generate these stored statistics, we call `vl set` again, with the
+`update` option.
+
+````stata
+. vl set, update
+
+-------------------------------------------------------------------------------
+                  |                      Macro's contents
+                  |------------------------------------------------------------
+Macro             |  # Vars   Description
+------------------+------------------------------------------------------------
+System            |
+  $vldummy        |       1   0/1 variable
+  $vlcategorical  |       1   categorical variable
+  $vlcontinuous   |       9   continuous variables
+  $vluncertain    |       0   perhaps continuous, perhaps categorical variables
+  $vlother        |       0   all missing or constant variables
+-------------------------------------------------------------------------------
+
+. vl list (weight), min max obs
+
+-------------------------------------------------------------------------------
+Variable | Macro           Values         Levels       Min       Max        Obs
+---------+---------------------------------------------------------------------
+  weight | $vlcontinuous   integers >=0       34      3170      4840         39
+  weight | $mylist1        integers >=0       34      3170      4840         39
+  weight | $mylist2        integers >=0       34      3170      4840         39
+-------------------------------------------------------------------------------
+
+````
+
+When the `update` option is passed, variable lists are not affected, only stored
+statistics are updated.

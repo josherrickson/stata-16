@@ -1,0 +1,410 @@
+# Variable Lists
+
+A common technique in previous versions of Stata was to define a global
+containing a list of variables to be used later in the document. For example,
+you might see something like this at the top of a Do file:
+
+```stata
+global predictors x1 x2 x3 x4
+```
+
+then further down the document something like
+
+```stata
+regress y $predictors
+logit z $predictors
+```
+
+In Stata 16, Stata has formalized this concept with the addition of the `vl`
+command (**v**ariable **l**ist). It works similarly to the use of globals: lists
+of variables are defined, then later reference via the `$name` syntax. However,
+using `vl` has the benefits of improved organization, customizations unique to
+variable lists, error checking, and overall convenience.
+
+## Initialization of Variable Lists
+
+To begin using variable lists, `vl set` must be run.
+
+````stata
+<<dd_do>>
+sysuse auto
+vl set
+<</dd_do>>
+````
+
+This produces a surprisingly large amount of output. When you initialize the use
+of variable lists, Stata will automatically create four variable lists, called
+the "System variable lists". Every *numeric* variable in the current data set is
+automatically placed into one of these four lists:
+
+- `vlcategorical`: Variables which Stata thinks are categorical. These generally
+  have to be non-negative, integer valued variables with less than 10 unique
+  values.
+- `vlcontinuous`: Variables which Stata thinks are continuous. These generally
+  are variables which have negative values, have non-integer values, or are
+  non-negative integers with more than 100 unique values.
+- `vluncertain`: Variables which Stata is unsure whether they are continuous or
+  categorical. These generally are non-negative integer valued variables with
+  between 10 and 100 unique values.
+- `vlother`: Any numeric variables that aren't really useful - either all
+  missing or constant variables.
+
+There is a potential fifth system variable list, `vldummy`, which is created
+when option `dummy` is passed. Unsurprisingly, this will take variables
+containing only values 0 and 1 out of `vlcategorical` and into this list.
+
+The "Notes" given below the output are generic; they appear regardless of how
+well Stata was able to categorize the variables. They can be suppressed with the
+`nonotes` option to `vl set`.
+
+The two thresholds given above, 10 and 100, can be adjusted by the `categorical`
+and `uncertain` options. For example,
+
+```stata
+vl set, categorical(20) uncertain(50)
+```
+
+Running `vl set` on an already `vl`-set data set will result in an error, unless
+the `clear` option is given, which will re-generate the lists.
+
+````stata
+<<dd_do>>
+vl set, dummy nonotes
+vl set, dummy nonotes clear
+<</dd_do>>
+````
+
+In the above, we changed our minds and wanted to include the `vldummy` list, but
+since we'd already `vl`-set, we had the `clear` the existing set.
+
+## Viewing lists
+
+When initializing the variable lists, we're treated to a nice table of all
+defined lists. We can replay it via
+
+````stata
+<<dd_do>>
+vl dir
+<</dd_do>>
+````
+
+To see the actual contents of the variable lists, we'll need to use `vl list`.
+
+````stata
+<<dd_do>>
+vl list
+<</dd_do>>
+````
+
+This output produces one row for each variable *in each variable list it is in*.
+We haven't used this yet, but variables can be in multiple lists.
+
+We can list only specific lists:
+
+````stata
+<<dd_do>>
+vl list vlcategorical
+<</dd_do>>
+````
+
+or specific variables
+
+````stata
+<<dd_do>>
+vl list (turn weight)
+<</dd_do>>
+````
+
+If "turn" was in multiple variable lists, each would appear as a row in this
+output.
+
+There's a bit of odd notation which can be used to sort the output by variable
+name, which makes it easier to identify variables which appear in multiple
+lists.
+
+````stata
+<<dd_do>>
+vl list (_all), sort
+<</dd_do>>
+````
+
+The `(_all)` tells Stata to report on all variables, and sorting (when you
+specify at least one variable) orders by variable name rather than variable list
+name.
+
+This will also list any numeric variables which are not found in **any** list.
+
+### Moving variables in system lists
+
+After initializing the variable lists, if you plan on using the system lists,
+you may need to move variables around (e.g. classifying the `vluncertain`
+variables into their proper lists). This can be done via `vl move` which has the
+syntax
+
+```stata
+vl move (<variables to move>) <destination list>
+```
+
+For example, all the variables in `vluncertain` are actually continuous:
+
+````stata
+<<dd_do>>
+vl list vluncertain
+vl move (price mpg trunk weight length turn displacement) vlcontinuous
+vl dir
+<</dd_do>>
+````
+
+Alternatively, since we're moving all variables in `vluncertain`, we can see our
+first use of the variable list!
+
+````stata
+<<dd_do>>
+vl set, dummy nonotes clear
+vl move ($vluncertain) vlcontinuous
+<</dd_do>>
+````
+
+Note that variable lists are essentially just global macros so can be referred
+to via `\$name`. Note, however, that the `\$` is only used when we want to
+actually use the variable list as a macro - in this case, we wanted to expand
+`vluncertain` into it's list of variables. When we're referring to a variable
+list in the `vl` commands, we *do not* use the `\$`.
+
+## User Variable Lists
+
+In addition to the System variable lists, you can define your own User variables
+lists, which I imagine will be used far more often. These are easy to create
+with `vl create`:
+
+````stata
+<<dd_do>>
+vl create mylist1 = (weight mpg)
+vl create mylist2 = (weight length trunk)
+vl dir, user
+vl list, user
+<</dd_do>>
+````
+
+Note the addition of the `user` option to `vl list` and `vl dir` to show only
+User variable lists and suppress the System variable lists. We can also
+demonstrate the odd sorting syntax here:
+
+````stata
+<<dd_do>>
+vl list (_all), sort user
+<</dd_do>>
+````
+
+You can refer to variable lists in all the usual shortcut ways:
+
+```stata
+vl create mylist = (x1-x100 z*)
+```
+
+We can add labels to variable lists:
+
+````stata
+<<dd_do>>
+vl label mylist1 "Related to gas consumption"
+vl label mylist2 "Related to size"
+vl dir, user
+<</dd_do>>
+````
+
+### Modifying User Variable Lists
+
+First, note that with User Variable Lists, the `vl move` command **does not
+work**. It only works with system variable lists.
+
+We can create new user variable lists which build off old lists with `vl
+create`. To add a new variable:
+
+````stata
+<<dd_do>>
+vl create mylist3 = mylist2 + (gear_ratio)
+vl list, user
+vl create mylist4 = mylist2 - (turn)
+vl list, user
+<</dd_do>>
+````
+
+Instead of adding (or removing) single variables at a time, we can instead add
+or remove lists. Keeping with the comment above, you do *not* use `\$` here to
+refer to the list.
+
+````stata
+<<dd_do>>
+vl create mylist5 = mylist2 - mylist1
+vl list mylist5
+<</dd_do>>
+````
+
+However, if we want to simply modify an existing list, a better approach would
+be the `vl modify` command. `vl create` and `vl modify` are similar to
+`generate` and `replace`; the former creates a new variable list while the later
+changes an existing variable list, but the syntax right of the `=` is the same.
+
+````stata
+<<dd_do>>
+vl modify mylist3 = mylist3 + (headroom)
+vl modify mylist3 = mylist3 - (weight)
+<</dd_do>>
+````
+
+## Dropping variable list
+
+Variable lists can be dropped via `vl drop`
+
+````stata
+<<dd_do>>
+vl dir, user
+vl drop mylist4 mylist5
+vl dir, user
+<</dd_do>>
+````
+
+System lists cannot be dropped; if you run `vl drop vlcontinuous` it just
+removes all the variables from it.
+
+## Using Variable Lists
+
+To be explicit, we can use variable lists in any command which would take the
+variables in that list. For example,
+
+````stata
+<<dd_do>>
+describe $mylist3
+describe $vlcategorical
+<</dd_do>>
+````
+
+We can also use them in a modeling setting.
+
+````stata
+<<dd_do>>
+regress mpg $mylist3
+<</dd_do>>
+````
+
+However, we'll run into an issue here - how to specify categorical variables or
+interactions? The `vl substitute` command creates "factor-variable lists" that
+can include factor variable indicators (`i.`), continuous variable indicators
+(`c.`), and interactions (`#` or `##`). (The name "factor-variable list" is
+slightly disingenuous; you could create a "factor-variable list" that includes
+no actual factors, for example, if you wanted to interact two continuous
+variables.)
+
+Creating a factor-varible list via `vl substitute` can be done by specifying
+variables or variable lists.
+
+````stata
+<<dd_do>>
+vl substitute sublist1 = mpg mylist3
+display "$sublist1"
+vl dir
+<</dd_do>>
+````
+
+Note the use of `display "\$listname"` instead of `vl list`. Factor-variable
+lists are not just lists of vairables, they also can include the features above,
+so must be displayed. Note that in the `vl dir`, "sublist1" has no number of
+variables listed, making it stand apart.
+
+We can make this more interesting by actually including continuous/factor
+indicatores and/or interactions.
+
+````stata
+<<dd_do>>
+vl substitute sublist2 = c.mylist1##i.vldummy
+display "$sublist2"
+<</dd_do>>
+````
+
+Note the need to specify that mylist1 is continuous (with `c.`). It follows the
+normal convention that Stata assumes predictors in a model are continuous by
+default, unless they're invloved in an interaction, in which case it assumes
+they are factors by default.
+
+````stata
+<<dd_do>>
+regress price $sublist2
+<</dd_do>>
+````
+
+### Updating factor-variable Lists
+
+Factor-variable lists cannot be directly modified.
+
+````stata
+<<dd_do>>
+display "$sublist1"
+vl modify sublist1 = sublist1 - mpg
+<</dd_do>>
+````
+
+However, if you create a factor-variable list using only other variable lists,
+if those lists get updated, so does the factor-variable list!
+
+````stata
+<<dd_do>>
+vl create continuous = (turn trunk)
+vl create categorical = (rep78 foreign)
+vl substitute predictors = c.continuous##i.categorical
+display "$predictors"
+vl modify continuous = continuous - (trunk)
+quiet vl rebuild
+display "$predictors"
+<</dd_do>>
+````
+
+Note the call to `vl rebuild`. Among other things, it will re-generate the
+factor-variable lists. (It produces a `vl dir` output without an option to
+suppress it, hence the use of
+[`quiet`](https://www.stata.com/manuals/pquietly.pdf).)
+
+## Stored Statistics
+
+You may have noticed that certain characteristics of the variable are reported.
+
+````stata
+<<dd_do>>
+vl list mylist3
+<</dd_do>>
+````
+
+This reports some characteristics of the variables (integer, whether it's
+non-negative) and the number of unique values. We can also see some other
+statistics:
+
+````stata
+<<dd_do>>
+vl list mylist3, min max obs
+<</dd_do>>
+````
+
+This is similar to [`codebook`](https://www.stata.com/manuals/dcodebook.pdf)
+except faster; these characteristics are saved at the time the variable list is
+created or modified and not updated automatically. If the data changes, this
+does *not* get updated.
+
+````stata
+<<dd_do>>
+drop if weight < 3000
+summarize weight
+vl list (weight), min max obs
+<</dd_do>>
+````
+
+To re-generate these stored statistics, we call `vl set` again, with the
+`update` option.
+
+````stata
+<<dd_do>>
+vl set, update
+vl list (weight), min max obs
+<</dd_do>>
+````
+
+When the `update` option is passed, variable lists are not affected, only stored
+statistics are updated.

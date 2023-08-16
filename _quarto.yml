@@ -1,0 +1,18 @@
+project:
+  type: book
+  pre-render: make quarto-prerender
+  output-dir: docs
+
+book:
+  title: "Stata 16: New Features"
+  sidebar:
+    title: "Stata 16: New Features"
+  chapters:
+    - index.qmd
+    - 01-frames.qmd
+    - 02-vl.qmd
+
+format:
+  html:
+    theme: cosmo
+    callout-appearance: simple

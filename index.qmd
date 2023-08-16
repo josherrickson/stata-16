@@ -1,0 +1,26 @@
+---
+engine: knitr
+---
+
+# Preface
+
+## How to use this document
+
+These notes are published using [Quarto](https://quarto.org). The Stata code is
+first rendered using a Stata [dynamic
+document](https://www.stata.com/manuals/rptdynamicdocumentsintro.pdf). The
+source code for these notes can be found at
+<https://github.com/CSCAR/workshop-stata-intro> for the curious.
+
+All images should link to full-size versions to see detail if needed.
+
+## Contact information
+
+You may contact me, Josh Errickson, at jerrick at umich.edu.
+
+## Usage
+
+This material was created for use in workshops and short courses presented by
+faculty and staff from the Consulting for Statistics, Computing \& Analytics
+Research (CSCAR) at the University of Michigan. No part of this material may be
+used for other purposes, copied, changed, or sold.
