@@ -10,7 +10,7 @@ These notes are published using [Quarto](https://quarto.org). The Stata code is
 first rendered using a Stata [dynamic
 document](https://www.stata.com/manuals/rptdynamicdocumentsintro.pdf). The
 source code for these notes can be found at
-<https://github.com/CSCAR/workshop-stata-intro> for the curious.
+<https://github.com/josherrickson/stata-16> for the curious.
 
 All images should link to full-size versions to see detail if needed.
 

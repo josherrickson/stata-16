@@ -11,7 +11,7 @@
     "href": "index.html#how-to-use-this-document",
     "title": "Stata 16: New Features",
     "section": "1.1 How to use this document",
-    "text": "1.1 How to use this document\nThese notes are published using Quarto. The Stata code is first rendered using a Stata dynamic document. The source code for these notes can be found at https://github.com/CSCAR/workshop-stata-intro for the curious.\nAll images should link to full-size versions to see detail if needed."
+    "text": "1.1 How to use this document\nThese notes are published using Quarto. The Stata code is first rendered using a Stata dynamic document. The source code for these notes can be found at https://github.com/josherrickson/stata-16 for the curious.\nAll images should link to full-size versions to see detail if needed."
   },
   {
     "objectID": "index.html#contact-information",
